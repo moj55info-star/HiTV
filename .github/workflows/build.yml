@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build iOS IPA (Fully Automated)
 on: [push, workflow_dispatch]
 jobs:
   build:
@@ -11,6 +11,142 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Auto-Generate Project Files
+        run: |
+          # 1. بناء ملف الحزم تلقائياً
+          cat << 'EOF' > package.json
+          {
+            "name": "hitv-multi-app",
+            "version": "1.0.0",
+            "scripts": {
+              "build": "echo 'No build step required'"
+            },
+            "dependencies": {
+              "@capacitor/core": "^6.0.0",
+              "@capacitor/ios": "^6.0.0"
+            },
+            "devDependencies": {
+              "@capacitor/cli": "^6.0.0"
+            }
+          }
+          EOF
+
+          # 2. بناء ملف الكابسييتور كونفج تلقائياً مع السماح بالتصفح الخارجي للمنصتين
+          cat << 'EOF' > capacitor.config.json
+          {
+            "appId": "com.hitv.multistream",
+            "appName": "MultiStream",
+            "webDir": "www",
+            "server": {
+              "allowNavigation": ["a.hitv.cam", "3iskk.xyz"]
+            }
+          }
+          EOF
+
+          # 3. إنشاء فولدر www وصناعة واجهة اختيار المنصات
+          mkdir -p www
+          cat << 'EOF' > www/index.html
+          <!DOCTYPE html>
+          <html lang="ar" dir="rtl">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+              <title>منصة المشاهدة العالمية</title>
+              <style>
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                      background-color: #0b0f19;
+                      color: #ffffff;
+                      margin: 0;
+                      padding: 20px;
+                      display: flex;
+                      flex-direction: column;
+                      align-items: center;
+                      justify-content: center;
+                      min-height: 100vh;
+                      box-sizing: border-box;
+                  }
+                  h1 {
+                      font-size: 24px;
+                      margin-bottom: 5px;
+                      color: #38bdf8;
+                      text-align: center;
+                  }
+                  p {
+                      font-size: 14px;
+                      color: #94a3b8;
+                      margin-bottom: 30px;
+                      text-align: center;
+                  }
+                  .container {
+                      width: 100%;
+                      max-width: 400px;
+                      display: flex;
+                      flex-direction: column;
+                      gap: 20px;
+                  }
+                  .card {
+                      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                      border: 1px solid #334155;
+                      border-radius: 16px;
+                      padding: 20px;
+                      text-align: center;
+                      text-decoration: none;
+                      color: white;
+                      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                      transition: transform 0.2s, border-color 0.2s;
+                      -webkit-tap-highlight-color: transparent;
+                      display: block;
+                  }
+                  .card:active {
+                      transform: scale(0.98);
+                      border-color: #38bdf8;
+                  }
+                  .card-icon {
+                      font-size: 40px;
+                      margin-bottom: 10px;
+                  }
+                  .card-title {
+                      font-size: 18px;
+                      font-weight: bold;
+                      margin-bottom: 5px;
+                  }
+                  .card-desc {
+                      font-size: 12px;
+                      color: #94a3b8;
+                  }
+                  .badge {
+                      background-color: #0284c7;
+                      color: white;
+                      font-size: 10px;
+                      padding: 3px 8px;
+                      border-radius: 20px;
+                      display: inline-block;
+                      margin-top: 8px;
+                  }
+              </style>
+          </head>
+          <body>
+              <h1>بوابة المشاهدة السريعة</h1>
+              <p>اختر المنصة التي ترغب بمتابعتها بدون إعلانات</p>
+              <div class="container">
+                  <a href="https://a.hitv.cam" class="card">
+                      <div class="card-icon">📺</div>
+                      <div class="card-title">منصة HiTV</div>
+                      <div class="card-desc">المسلسلات والأفلام الآسيوية والعالمية</div>
+                      <div class="badge">مصفى من الإعلانات</div>
+                  </a>
+                  <a href="https://3iskk.xyz" class="card">
+                      <div class="card-icon">❤️</div>
+                      <div class="card-title">منصة قصة عشق</div>
+                      <div class="card-desc">المسلسلات والدراما التركية المترجمة</div>
+                      <div class="badge">مصفى من الإعلانات</div>
+                  </a>
+              </div>
+          </body>
+          </html>
+          EOF
 
       - name: Install Dependencies
         run: npm install
@@ -36,12 +172,11 @@ jobs:
                   // 1. قفل النوافذ المنبثقة نهائياً
                   window.open = function() { return null; };
                   
-                  // 2. اعتراض أي ضغطة (Click) لمنع توجيه الإعلانات الخفية عند البحث أو التشغيل
+                  // 2. اعتراض أي ضغطة (Click) لمنع توجيه الإعلانات الخفية ومسكها في الـ Capture Phase
                   document.addEventListener('click', function(e) {
                       let targetLink = e.target.closest('a');
                       if (targetLink) {
                           let href = targetLink.getAttribute('href') || '';
-                          // إذا كان الرابط خارجي ومريب أو يفتح بتبويب جديد، الغي الضغطة
                           if (targetLink.target === '_blank' || href.includes('ads') || href.includes('pop') || href.includes('click')) {
                               if (href !== '' && !href.includes(window.location.hostname)) {
                                   e.preventDefault();
@@ -50,11 +185,10 @@ jobs:
                               }
                           }
                       }
-                  }, true); // تفعيل خيار الـ Capture لمسك الضغطة أولاً
+                  }, true);
 
-                  // 3. فحص دوري وسريع جداً (كل نصف ثانية) لحذف الطبقات الشفافة المزعجة والإعلانات
+                  // 3. فحص دوري وسريع جداً لحذف الطبقات الشفافة الخفية الماصة للضغطات
                   setInterval(function() {
-                      // حذف أي Div شفاف وكبير يغطي الشاشة لاصطياد الضغطات
                       document.querySelectorAll('div').forEach(div => {
                           let style = window.getComputedStyle(div);
                           if (style.position === 'fixed' && parseInt(style.zIndex) > 500 && div.id !== 'cap-home-btn') {
@@ -64,7 +198,6 @@ jobs:
                           }
                       });
 
-                      // حذف عناصر الإعلانات الشائعة بمواقع الأفلام
                       const adSelectors = [
                           'iframe[src*="ads"]', 'iframe[src*="pop"]', 'div[class*="ad-"]', 
                           'div[id*="ad-"]', '.adsbox', '#ad-container', '.native-ad', 
@@ -76,7 +209,7 @@ jobs:
                       });
                   }, 500);
 
-                  // 4. زر العودة الرئيسي (🏠) للتبديل بين قصة عشق و HiTV
+                  // 4. زر العودة الرئيسي (🏠) للتبديل السلس
                   if (!document.getElementById('cap-home-btn') && window.location.href.indexOf('capacitor://localhost') === -1) {
                       let btn = document.createElement('div');
                       btn.id = 'cap-home-btn';
