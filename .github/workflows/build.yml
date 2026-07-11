@@ -21,6 +21,96 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync ios
 
+      - name: Inject Advanced AdBlocker and Home Button
+        run: |
+          cat << 'EOF' > ios/App/App/ViewController.swift
+          import UIKit
+          import Capacitor
+          import WebKit
+
+          class ViewController: CAPBridgeViewController {
+              override func viewDidLoad() {
+                  super.viewDidLoad()
+                  
+                  let antiClickjackScript = """
+                  // 1. قفل النوافذ المنبثقة نهائياً
+                  window.open = function() { return null; };
+                  
+                  // 2. اعتراض أي ضغطة (Click) لمنع توجيه الإعلانات الخفية عند البحث أو التشغيل
+                  document.addEventListener('click', function(e) {
+                      let targetLink = e.target.closest('a');
+                      if (targetLink) {
+                          let href = targetLink.getAttribute('href') || '';
+                          // إذا كان الرابط خارجي ومريب أو يفتح بتبويب جديد، الغي الضغطة
+                          if (targetLink.target === '_blank' || href.includes('ads') || href.includes('pop') || href.includes('click')) {
+                              if (href !== '' && !href.includes(window.location.hostname)) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  return false;
+                              }
+                          }
+                      }
+                  }, true); // تفعيل خيار الـ Capture لمسك الضغطة أولاً
+
+                  // 3. فحص دوري وسريع جداً (كل نصف ثانية) لحذف الطبقات الشفافة المزعجة والإعلانات
+                  setInterval(function() {
+                      // حذف أي Div شفاف وكبير يغطي الشاشة لاصطياد الضغطات
+                      document.querySelectorAll('div').forEach(div => {
+                          let style = window.getComputedStyle(div);
+                          if (style.position === 'fixed' && parseInt(style.zIndex) > 500 && div.id !== 'cap-home-btn') {
+                              if (div.innerText.trim() === '') {
+                                  div.remove();
+                              }
+                          }
+                      });
+
+                      // حذف عناصر الإعلانات الشائعة بمواقع الأفلام
+                      const adSelectors = [
+                          'iframe[src*="ads"]', 'iframe[src*="pop"]', 'div[class*="ad-"]', 
+                          'div[id*="ad-"]', '.adsbox', '#ad-container', '.native-ad', 
+                          'div[class*="popup"]', 'div[id*="popup"]', 'div[class*="banner"]',
+                          '[id^="popunder"]', '[class^="popunder"]', 'a[href*="click"]'
+                      ];
+                      adSelectors.forEach(selector => {
+                          document.querySelectorAll(selector).forEach(el => el.remove());
+                      });
+                  }, 500);
+
+                  // 4. زر العودة الرئيسي (🏠) للتبديل بين قصة عشق و HiTV
+                  if (!document.getElementById('cap-home-btn') && window.location.href.indexOf('capacitor://localhost') === -1) {
+                      let btn = document.createElement('div');
+                      btn.id = 'cap-home-btn';
+                      btn.innerHTML = '🏠';
+                      btn.style.position = 'fixed';
+                      btn.style.bottom = '30px';
+                      btn.style.left = '20px';
+                      btn.style.width = '50px';
+                      btn.style.height = '50px';
+                      btn.style.backgroundColor = '#0284c7';
+                      btn.style.color = 'white';
+                      btn.style.borderRadius = '50%';
+                      btn.style.textAlign = 'center';
+                      btn.style.lineHeight = '50px';
+                      btn.style.fontSize = '24px';
+                      btn.style.zIndex = '999999';
+                      btn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.5)';
+                      btn.style.cursor = 'pointer';
+                      btn.style.userSelect = 'none';
+                      btn.style.webkitUserSelect = 'none';
+                      
+                      btn.onclick = function() {
+                          window.location.href = 'capacitor://localhost/index.html';
+                      };
+                      document.body.appendChild(btn);
+                  }
+                  """
+                  
+                  let userScript = WKUserScript(source: antiClickjackScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+                  self.webView?.configuration.userContentController.addUserScript(userScript)
+              }
+          }
+          EOF
+
       - name: Build Xcode Archive (Unsigned)
         run: |
           xcodebuild archive \
