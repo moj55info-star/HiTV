@@ -1,0 +1,8 @@
+{
+  "appId": "com.hitv.wrapper",
+  "appName": "HiTV",
+  "webDir": "www",
+  "server": {
+    "url": "https://a.hitv.cam"
+  }
+}
