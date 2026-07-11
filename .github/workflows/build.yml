@@ -21,14 +21,22 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync ios
 
-      - name: Build Xcode Unsigned
+      - name: Build Xcode Archive (Unsigned)
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO clean build CONFIGURATION_BUILD_DIR=../../build
+          xcodebuild archive \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath ios/App/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
       - name: Create IPA File
         run: |
           mkdir Payload
-          cp -r build/App.app Payload/
+          cp -r ios/App/App.xcarchive/Products/Applications/App.app Payload/
           zip -r HiTV.ipa Payload
 
       - name: Upload IPA Artifact
